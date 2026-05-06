@@ -19,6 +19,7 @@ import {
   addBusinessDays,
   nextMonday,
   nextThursday,
+  nextFriday,
   calendarDaysBetween,
   today,
   formatDateISO,
@@ -278,15 +279,15 @@ export function computeCommsTasks(
         { blockedReason, notes: 'Closing-soon weekly Thursday email roundup' }
       ));
 
-      // Social: Thursday roundup (capped at 2/day)
+      // Social: Friday carousel — all campaigns closing in the next 7 days
       tasks.push(buildTask(
         campaign,
         'SocialMedia', 'Roundup', 'Closing',
         now,
-        claimSocialDate(nextThursday(now)),
+        claimSocialDate(nextFriday(now)),
         'High',
         status,
-        { blockedReason, notes: 'Closing-soon weekly Thursday social roundup' }
+        { blockedReason, notes: 'Closing-soon weekly Friday carousel' }
       ));
 
       // Push: standalone, high urgency

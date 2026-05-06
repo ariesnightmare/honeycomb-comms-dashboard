@@ -93,6 +93,11 @@ export function nextThursday(from: Date): Date {
   return nextWeekday(from, 4);
 }
 
+/** Next Friday on or after `from`. */
+export function nextFriday(from: Date): Date {
+  return nextWeekday(from, 5);
+}
+
 /** Return YYYY-MM-DD string for a date. */
 export function formatDateISO(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
