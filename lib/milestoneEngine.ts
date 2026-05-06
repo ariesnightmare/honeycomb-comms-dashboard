@@ -132,6 +132,8 @@ export interface MilestoneEngineOptions {
   milestoneTriggerDates?: Map<string, string>;
 }
 
+const SOCIAL_MAX_PER_DAY = 2;
+
 export function computeCommsTasks(
   campaigns: Campaign[],
   opts: MilestoneEngineOptions = {}
@@ -140,7 +142,22 @@ export function computeCommsTasks(
   const now = opts.todayOverride ?? today();
   const tasks: CommsTask[] = [];
 
-  // Group tracker for same-day standalone comms staggering
+  // Social post cap: no more than 2 per calendar day — overflow bumps to next business day
+  const socialPostsPerDay = new Map<string, number>();
+  function claimSocialDate(desiredDate: Date): Date {
+    let candidate = new Date(desiredDate);
+    while (true) {
+      const key = formatDateISO(candidate);
+      const count = socialPostsPerDay.get(key) ?? 0;
+      if (count < SOCIAL_MAX_PER_DAY) {
+        socialPostsPerDay.set(key, count + 1);
+        return candidate;
+      }
+      candidate = addBusinessDays(candidate, 1);
+    }
+  }
+
+  // Group tracker for same-day standalone comms staggering (push/SMS)
   // Key: `${channel}:${milestone}:${ISO date}` → count of campaigns already assigned
   const standaloneSameDayCount = new Map<string, number>();
 
@@ -161,20 +178,19 @@ export function computeCommsTasks(
     const launchDate = campaign.launch_date ?? now;
 
     // ── LAUNCH milestone tasks (10% crossed) ─────────────────────────────────
-    // Social: Monday roundup
+    // Social: Monday roundup (capped at 2/day — overflow bumps to next business day)
     tasks.push(buildTask(
       campaign,
       'SocialMedia', 'Roundup', 'Launch',
       launchDate,
-      nextMonday(launchDate),
+      claimSocialDate(nextMonday(launchDate)),
       'Low',
       status,
       { blockedReason, notes: 'Weekly Monday roundup — new offering inclusion' }
     ));
 
-    // Newsletter: new offerings section (next Monday)
+    // Newsletter: always goes out on Thursday
     const nlKey = highestNewsletterMilestone(campaign);
-    // We handle newsletter deduplication at the end — emit per campaign
     if (nlKey) {
       const nlSection = newsletterSectionLabel(nlKey);
       const nlMilestone = newsletterMilestoneToTier(nlKey);
@@ -183,7 +199,7 @@ export function computeCommsTasks(
         campaign,
         'InvestorNewsletter', 'Roundup', nlMilestone,
         nlTrigger,
-        nextMonday(nlTrigger),
+        nextThursday(nlTrigger),
         nlKey === 'Closing' || nlKey === 'TargetReached' ? 'High' : 'Medium',
         status,
         {
@@ -236,12 +252,12 @@ export function computeCommsTasks(
     if (campaign.pct_of_minimum >= MID_CAMPAIGN_THRESHOLD) {
       const midDate = campaign.n04_50pct_date ?? now;
 
-      // Social: standalone post
+      // Social: standalone post (capped at 2/day)
       tasks.push(buildTask(
         campaign,
         'SocialMedia', 'Standalone', 'MidCampaign',
         midDate,
-        addBusinessDays(midDate, 3),
+        claimSocialDate(addBusinessDays(midDate, 3)),
         'Medium',
         status,
         { blockedReason, notes: 'Mid-campaign standalone social post' }
@@ -262,12 +278,12 @@ export function computeCommsTasks(
         { blockedReason, notes: 'Closing-soon weekly Thursday email roundup' }
       ));
 
-      // Social: Thursday roundup
+      // Social: Thursday roundup (capped at 2/day)
       tasks.push(buildTask(
         campaign,
         'SocialMedia', 'Roundup', 'Closing',
         now,
-        nextThursday(now),
+        claimSocialDate(nextThursday(now)),
         'High',
         status,
         { blockedReason, notes: 'Closing-soon weekly Thursday social roundup' }
