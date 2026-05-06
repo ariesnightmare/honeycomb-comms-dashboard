@@ -66,6 +66,24 @@ function parseBool(val: string | null | undefined): boolean {
   return val === 'true' || val === '1' || val === 'yes';
 }
 
+/**
+ * HubSpot returns date fields in two possible formats:
+ *   - YYYY-MM-DD string  (some custom properties)
+ *   - Unix timestamp ms  (standard date properties, e.g. "1748476800000")
+ * Normalise both to YYYY-MM-DD so downstream parsing is consistent.
+ */
+function parseHubSpotDate(val: string | null | undefined): string | null {
+  if (!val) return null;
+  // Unix timestamp in milliseconds (10–13 digits, all numeric)
+  if (/^\d{10,13}$/.test(val)) {
+    const d = new Date(parseInt(val));
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().split('T')[0]; // YYYY-MM-DD UTC
+  }
+  // Already YYYY-MM-DD or ISO string — return just the date part
+  return val.split('T')[0];
+}
+
 function normaliseDeal(raw: HubSpotDealResponse): HubSpotDeal {
   const p = raw.properties;
   return {
@@ -74,18 +92,18 @@ function normaliseDeal(raw: HubSpotDealResponse): HubSpotDeal {
     dealname: p.dealname ?? '',
     pipeline: p.pipeline ?? '',
     dealstage: p.dealstage ?? '',
-    launch_date: p.launch_date ?? null,
-    form_c_end_date: p.form_c_end_date ?? null,
-    min_funding_amount: parseNumber(p.min_funding_amount),
-    max_funding_amount: parseNumber(p.max_funding_amount),
-    n04___50__to_minimum: p.n04___50__to_minimum ?? null,
-    n05___minimum_met: p.n05___minimum_met ?? null,
-    n72_hours_timestamp: p.n72_hours_timestamp ?? null,
-    hs_is_closed: parseBool(p.hs_is_closed),
-    interest_rate: p.interest_rate ? parseFloat(p.interest_rate) : null,
-    state: p.state ?? null,
+    launch_date:           parseHubSpotDate(p.launch_date),
+    form_c_end_date:       parseHubSpotDate(p.form_c_end_date),
+    min_funding_amount:    parseNumber(p.min_funding_amount),
+    max_funding_amount:    parseNumber(p.max_funding_amount),
+    n04___50__to_minimum:  parseHubSpotDate(p.n04___50__to_minimum),
+    n05___minimum_met:     parseHubSpotDate(p.n05___minimum_met),
+    n72_hours_timestamp:   parseHubSpotDate(p.n72_hours_timestamp),
+    hs_is_closed:          parseBool(p.hs_is_closed),
+    interest_rate:         p.interest_rate ? parseFloat(p.interest_rate) : null,
+    state:                 p.state ?? null,
     strong_start_goal__10__: p.strong_start_goal__10__ ? parseNumber(p.strong_start_goal__10__) : null,
-    advertising_consent: parseBool(p.advertising_consent),
+    advertising_consent:   parseBool(p.advertising_consent),
   };
 }
 
