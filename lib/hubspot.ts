@@ -95,26 +95,18 @@ export async function fetchActiveDeals(): Promise<HubSpotDeal[]> {
   const allDeals: HubSpotDeal[] = [];
   let after: string | undefined;
 
-  // Get today's date as ISO string for close date filter
-  const today = new Date().toISOString().split('T')[0];
-
+  // HubSpot ORs between filterGroups and ANDs within each group.
+  // One filterGroup per pipeline — the IN operator is not supported.
   const basePayload = {
-    filterGroups: [
-      {
-        filters: [
-          { propertyName: 'hs_is_closed', operator: 'EQ', value: 'false' },
-          { propertyName: 'form_c_end_date', operator: 'GTE', value: today },
-          {
-            propertyName: 'pipeline',
-            operator: 'IN',
-            values: ACTIVE_PIPELINE_IDS,
-          },
-        ],
-      },
-    ],
+    filterGroups: ACTIVE_PIPELINE_IDS.map((pipelineId) => ({
+      filters: [
+        { propertyName: 'hs_is_closed', operator: 'EQ', value: 'false' },
+        { propertyName: 'pipeline',     operator: 'EQ', value: pipelineId },
+      ],
+    })),
     properties: DEAL_PROPERTIES.split(','),
     limit: 100,
-    sorts: [{ propertyName: 'form_c_end_date', direction: 'ASCENDING' }],
+    sorts: [{ propertyName: 'createdate', direction: 'DESCENDING' }],
   };
 
   do {
@@ -124,7 +116,7 @@ export async function fetchActiveDeals(): Promise<HubSpotDeal[]> {
       method: 'POST',
       headers: getHeaders(),
       body: JSON.stringify(payload),
-      next: { revalidate: 0 }, // always fresh
+      next: { revalidate: 0 },
     });
 
     if (!res.ok) {
@@ -137,7 +129,13 @@ export async function fetchActiveDeals(): Promise<HubSpotDeal[]> {
     after = data.paging?.next?.after;
   } while (after);
 
-  return allDeals;
+  // Filter out deals with no close date or a close date in the past
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return allDeals.filter((d) => {
+    if (!d.form_c_end_date) return false;
+    return new Date(d.form_c_end_date) >= today;
+  });
 }
 
 /** Fetch a single deal by HubSpot ID. */
