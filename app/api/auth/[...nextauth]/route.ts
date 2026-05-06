@@ -18,7 +18,7 @@ const handler = NextAuth({
       const allowedDomains = (process.env.ALLOWED_EMAIL_DOMAINS ?? 'honeycombcredit.com').split(',');
       return allowedDomains.some((domain) => email.endsWith(`@${domain.trim()}`));
     },
-    async session({ session, token }) {
+    async session({ session }) {
       return session;
     },
   },
